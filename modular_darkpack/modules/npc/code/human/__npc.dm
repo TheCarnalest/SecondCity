@@ -42,12 +42,21 @@
 	var/last_health = 100
 	var/mob/living/last_damager
 
-	var/turf/walktarget	//dlya movementa
+	/// If true, the NPC won't move
+	var/no_movement = FALSE
+	/// If true, the NPC won't walk towards a destination and will instead walk in random directions
+	var/random_movement = FALSE
 
-	var/last_grab = 0
+	/// Turf the NPC is trying to walk towards
+	var/turf/walktarget
 
-	var/ticks_since_moved = 0
-	var/last_tick_loc
+	/// When the NPC was last grabbed, immobilized for 1.5 seconds after being grabbed
+	var/last_grabbed = 0
+
+	/// How many life ticks since the NPC moved, used to check if they're stuck
+	var/life_ticks_since_moved = 0
+	/// Where the NPC was on their last life tick, used to check if they're stuck
+	var/atom/last_life_tick_location
 
 	var/stopturf = 1
 
@@ -66,15 +75,7 @@
 
 	var/spawned_backup_weapon = FALSE
 
-	var/staying = FALSE
-
-	var/lifespan = 0	//How many cycles. He'll be deleted if over than a ten thousand
-	var/random_movement = FALSE
-	var/max_stat = 2
-
 	var/list/spotted_bodies = list()
-
-	var/is_criminal = FALSE
 
 	var/list/drop_on_death_list = null
 
@@ -91,6 +92,7 @@
 	RegisterSignal(src, COMSIG_LIVING_MOB_BUMPED, PROC_REF(handle_bumped))
 	// Be annoyed if helped
 	RegisterSignal(src, COMSIG_CARBON_HELP_ACT, PROC_REF(handle_helped))
+
 	return INITIALIZE_HINT_LATELOAD
 
 /mob/living/carbon/human/npc/LateInitialize(mapload)
@@ -124,7 +126,7 @@
 	last_attacker = null
 	last_damager = null
 	walktarget = null
-	last_tick_loc = null
+	last_life_tick_location = null
 	my_weapon_type = null
 	my_weapon = null
 	my_backup_weapon_type = null
@@ -137,6 +139,7 @@
 	return ..()
 
 //====================Sticky Item Handling====================
+
 /mob/living/carbon/human/npc/proc/register_sticky_item(obj/item/my_item)
 	ADD_TRAIT(my_item, TRAIT_NODROP, NPC_ITEM_TRAIT)
 	if(!drop_on_death_list?.len)
@@ -149,6 +152,7 @@
 	if (!LAZYLEN(drop_on_death_list))
 		return
 
+	// Drop sticky items
 	for (var/obj/item/dropping_item in drop_on_death_list)
 		LAZYREMOVE(drop_on_death_list, dropping_item)
 		REMOVE_TRAIT(dropping_item, TRAIT_NODROP, NPC_ITEM_TRAIT)
@@ -181,6 +185,8 @@
 	say(message)
 	is_talking = FALSE
 
+//============================================================
+
 /mob/living/carbon/human/npc/proc/Annoy(atom/source)
 	GLOB.move_manager.stop_looping(src)
 
@@ -206,12 +212,16 @@
 			phrase = pick(socialrole?.female_phrases)
 	realistic_say(phrase)
 
-/mob/living/carbon/human/npc/proc/handle_attacked(datum/source, atom/attacker, attack_flags)
-	// Only aggro nearby npcs if its lethal.
-	if(!(attack_flags & (ATTACKER_STAMINA_ATTACK|ATTACKER_SHOVING)))
-		for(var/mob/living/carbon/human/npc/nearby_npcs in oviewers(DEFAULT_SIGHT_DISTANCE, src))
-			nearby_npcs.Aggro(attacker)
-		SEND_SIGNAL(SSdcs, COMSIG_GLOB_REPORT_CRIME, CRIME_FIREFIGHT, get_turf(src))
+/mob/living/carbon/human/npc/proc/handle_attacked(mob/living/carbon/human/npc/source, mob/living/attacker, attack_flags)
+	// Only aggro nearby NPCs if the attack is dealing actual damage
+	if (attack_flags & (ATTACKER_STAMINA_ATTACK | ATTACKER_SHOVING))
+		Aggro(attacker, TRUE)
+		return
+
+	for (var/mob/living/carbon/human/npc/nearby_npcs in oviewers(DEFAULT_SIGHT_DISTANCE, src))
+		nearby_npcs.Aggro(attacker)
+	SEND_SIGNAL(SSdcs, COMSIG_GLOB_REPORT_CRIME, CRIME_FIREFIGHT, get_turf(src))
+
 	Aggro(attacker, TRUE)
 
 /mob/living/carbon/human/npc/proc/handle_bumped(mob/living/carbon/human/npc/source, mob/living/bumping)
@@ -228,6 +238,7 @@
 	source.Annoy(helper)
 
 /mob/living/carbon/human/npc/Move(NewLoc, direct)
+	// Interrupt movement if they shouldn't be able to
 	if (!can_npc_move())
 		GLOB.move_manager.stop_looping(src)
 
@@ -245,7 +256,7 @@
 /mob/living/carbon/human/npc/grabbedby(mob/living/carbon/user, supress_message = FALSE)
 	. = ..()
 
-	last_grab = world.time
+	last_grabbed = world.time
 
 /mob/living/carbon/human/npc/ghoulificate(mob/owner)
 	deadchat_broadcast(span_ghostalert("[owner] is ghoulificating [src]."), owner, src)

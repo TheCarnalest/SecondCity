@@ -1,5 +1,5 @@
 /mob/living/carbon/human/npc/bubway
-	staying = TRUE
+	no_movement = TRUE
 
 /mob/living/carbon/human/npc/bubway/Initialize(mapload)
 	. = ..()

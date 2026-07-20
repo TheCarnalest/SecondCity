@@ -8,7 +8,7 @@
 	var/list/police_block_phrases = list("I HAVE NO POLICE BAN PHRASE")
 	var/list/block_phrases = list("I HAVE NO BLOCK PHRASE")
 
-	staying = TRUE
+	no_movement = TRUE
 
 	var/left_home_at = 0
 	var/walk_home_timer = 2 MINUTES

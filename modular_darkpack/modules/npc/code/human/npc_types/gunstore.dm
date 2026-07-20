@@ -1,5 +1,5 @@
 /mob/living/carbon/human/npc/gunstore
-	staying = TRUE
+	no_movement = TRUE
 
 /mob/living/carbon/human/npc/gunstore/Initialize(mapload)
 	. = ..()

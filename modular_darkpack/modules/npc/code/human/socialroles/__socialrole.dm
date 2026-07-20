@@ -233,8 +233,6 @@
 		"What the fuck!?",
 	)
 
-	var/is_criminal = FALSE
-
 /mob/living/carbon/human/npc/proc/AssignSocialRole(datum/socialrole/S, dont_random)
 	socialrole = new S()
 
@@ -245,7 +243,6 @@
 	health = round(initial(health)+(initial(health)/3)*(st_get_stat(STAT_STAMINA)))
 	last_health = health
 
-	is_criminal = socialrole.is_criminal
 	if (check_holidays(FESTIVE_SEASON))
 		if (!length(socialrole.suits))
 			socialrole.suits = list(

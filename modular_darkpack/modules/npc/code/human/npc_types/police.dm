@@ -1,6 +1,5 @@
 /mob/living/carbon/human/npc/police
 	aggressive = TRUE
-	max_stat = DEAD
 	my_backup_weapon_type = /obj/item/melee/baton/vamp
 
 /mob/living/carbon/human/npc/police/Initialize(mapload)
@@ -28,8 +27,7 @@
 // There was a todo here for creating a npc that stands still. But it seems like we did implement that behavoir
 /mob/living/carbon/human/npc/police/static
 	// fights_anyway = TRUE
-	staying = TRUE
-	max_stat = UNCONSCIOUS
+	no_movement = TRUE
 	my_backup_weapon_type = /obj/item/melee/baton/vamp
 
 /*

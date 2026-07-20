@@ -132,7 +132,7 @@
 	if (fire_stacks >= 1)
 		INVOKE_ASYNC(src, PROC_REF(execute_resist))
 
-	if (staying)
+	if (no_movement)
 		return
 
 	// Try to walk around
@@ -144,13 +144,13 @@
 		walktarget = ChoosePath()
 
 	// Keep track of how many life ticks the NPC has been stuck
-	if (loc == last_tick_loc)
-		ticks_since_moved += 1
+	if (loc == last_life_tick_location)
+		life_ticks_since_moved += 1
 	else
-		last_tick_loc = loc
-		ticks_since_moved = 0
+		last_life_tick_location = loc
+		life_ticks_since_moved = 0
 
-	if (ticks_since_moved <= 3)
+	if (life_ticks_since_moved <= 3)
 		return
 
 	// The NPC can't find a path to walk, just make them randomly move
@@ -253,7 +253,7 @@
 /mob/living/carbon/human/npc/proc/can_npc_move()
 	if(stat >= HARD_CRIT)
 		return FALSE
-	if((last_grab + 1.5 SECONDS) > world.time)
+	if((last_grabbed + 1.5 SECONDS) > world.time)
 		return FALSE
 	if(mind || client)
 		return FALSE
@@ -294,9 +294,7 @@
 	if (!can_npc_move())
 		return
 
-	if(!staying)
-		lifespan += 1
-	if(!walktarget && !staying)
+	if (walktarget || no_movement)
 		stopturf = rand(1, 2)
 		walktarget = ChoosePath()
 		face_atom(walktarget)
@@ -314,12 +312,6 @@
 		if (!has_weapon && !aggressive)
 			GLOB.move_manager.move_away(src, danger_source, 10, cached_multiplicative_slowdown)
 		else
-			// Criminals will attack anyone, others will only attack non-police
-			// DARKPACK TODO - reimplement IDs
-			/*
-			var/obj/item/card/id/id_card = danger_source.get_idcard(FALSE)
-			if (!istype(id_card, /obj/item/card/id/police) || is_criminal)
-			*/
 			if(!spawned_weapon && has_weapon)
 				npc_draw_weapon()
 			if(spawned_weapon && get_active_held_item() != my_weapon)
@@ -347,7 +339,7 @@
 			emote("scream")
 
 	// Walking around behaviour
-	else if (walktarget && !staying)
+	else if (walktarget && !no_movement)
 		GLOB.move_manager.move_to(src, walktarget, 0, cached_multiplicative_slowdown)
 
 	if (!has_weapon || danger_source || !spawned_weapon)

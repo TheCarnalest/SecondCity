@@ -62,4 +62,3 @@
 		"Oh man, I gotta get a picture of me with this thing!",
 		"Heh, you're one of those guys, huh?"
 	)
-	is_criminal = TRUE

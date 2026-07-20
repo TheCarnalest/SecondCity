@@ -1,10 +1,10 @@
 /mob/living/carbon/human/npc/walkby/club
-	staying = TRUE
+	no_movement = TRUE
 
 /mob/living/carbon/human/npc/walkby/club/Life()
 	. = ..()
 
-	if (!staying || stat >= UNCONSCIOUS)
+	if (!no_movement || stat >= UNCONSCIOUS)
 		return
 	if (!prob(5))
 		return
@@ -25,4 +25,4 @@
 			dancesecond(src)
 
 	if (!hasjukebox)
-		staying = FALSE
+		no_movement = FALSE

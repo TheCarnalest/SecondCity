@@ -1,6 +1,4 @@
 /datum/socialrole/bouncer
-	is_criminal = TRUE
-
 	//Appearence
 	s_tones = list(
 		"albino",
