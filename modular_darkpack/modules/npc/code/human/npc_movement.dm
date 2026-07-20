@@ -294,7 +294,8 @@
 	if (!can_npc_move())
 		return
 
-	if (walktarget || no_movement)
+	// Not going anywhere, decide on a place to walk to
+	if (!walktarget && !no_movement)
 		stopturf = rand(1, 2)
 		walktarget = ChoosePath()
 		face_atom(walktarget)
@@ -344,6 +345,8 @@
 
 	if (!has_weapon || danger_source || !spawned_weapon)
 		return
+
+	// Put their weapon away when not in combat or note that they lost it
 	if (get_active_held_item() == my_weapon)
 		npc_stow_weapon()
 	else

@@ -75,8 +75,6 @@
 
 	var/spawned_backup_weapon = FALSE
 
-	var/list/spotted_bodies = list()
-
 	var/list/drop_on_death_list = null
 
 /mob/living/carbon/human/npc/Initialize(mapload)
@@ -131,7 +129,6 @@
 	my_weapon = null
 	my_backup_weapon_type = null
 	my_backup_weapon = null
-	spotted_bodies = null
 	drop_on_death_list = null
 	GLOB.npc_list -= src
 	GLOB.alive_npc_list -= src
