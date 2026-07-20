@@ -46,8 +46,8 @@
 
 	var/last_grab = 0
 
-	var/tupik_steps = 0
-	var/tupik_loc
+	var/ticks_since_moved = 0
+	var/last_tick_loc
 
 	var/stopturf = 1
 
@@ -69,7 +69,7 @@
 	var/staying = FALSE
 
 	var/lifespan = 0	//How many cycles. He'll be deleted if over than a ten thousand
-	var/old_movement = FALSE
+	var/random_movement = FALSE
 	var/max_stat = 2
 
 	var/list/spotted_bodies = list()
@@ -124,7 +124,7 @@
 	last_attacker = null
 	last_damager = null
 	walktarget = null
-	tupik_loc = null
+	last_tick_loc = null
 	my_weapon_type = null
 	my_weapon = null
 	my_backup_weapon_type = null
@@ -233,7 +233,7 @@
 
 	var/getaway = stopturf + 1
 
-	if (!old_movement)
+	if (!random_movement)
 		getaway = 2
 
 	if (get_dist(src, walktarget) <= getaway)

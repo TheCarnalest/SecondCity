@@ -1,6 +1,6 @@
 /mob/living/carbon/human/npc/hobo
 	bloodquality = BLOOD_QUALITY_LOW
-	old_movement = TRUE
+	random_movement = TRUE
 
 /mob/living/carbon/human/npc/hobo/Initialize(mapload)
 	. = ..()

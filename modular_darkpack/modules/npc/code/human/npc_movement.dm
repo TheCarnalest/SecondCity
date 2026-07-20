@@ -10,7 +10,7 @@
 /obj/effect/landmark/npc_spawn_point/Destroy()
 	GLOB.npc_spawn_points -= src
 
-	. = ..()
+	return ..()
 
 /obj/effect/landmark/npcbeacon
 	name = "NPC beacon"
@@ -26,9 +26,28 @@
 
 	directionwalk = dir
 
+/**
+ * Marker to be placed on a turf that AI (like NPCs) shouldn't be able to path or walk through.
+ *
+ * Players could theoretically immobilize NPCs by placing them on or inbetween these, so use with
+ * caution and try not to cover areas in them.
+ */
 /obj/effect/landmark/npcwall
 	name = "NPC Wall"
 	icon_state = "x"
+
+/obj/effect/landmark/npcwall/Initialize(mapload)
+	. = ..()
+
+	var/turf/on_turf = get_turf(src)
+	ADD_TRAIT(on_turf, TRAIT_AI_AVOID_TURF, src)
+
+/obj/effect/landmark/npcwall/Destroy()
+	// This effect isn't supposed to ever move
+	var/turf/on_turf = get_turf(src)
+	REMOVE_TRAIT(on_turf, TRAIT_AI_AVOID_TURF, src)
+
+	return ..()
 
 /obj/effect/landmark/npcactivity
 	name = "NPC Activity"
@@ -95,39 +114,56 @@
 
 	. = ..()
 
+	// Aggro on whoever is pulling them
 	if (pulledby && (prob(25) || aggressive))
 		INVOKE_ASYNC(src, PROC_REF(Aggro), pulledby, TRUE)
 
 	if (!can_npc_move())
 		return
+
+	// NPCs don't need to eat apparently
 	nutrition = 400
+
+	// Refresh hostility if the danger source is in view distance
 	if (get_dist(danger_source, src) < 7)
 		last_antagonised = world.time
+
+	// Stop, drop, and roll!
 	if (fire_stacks >= 1)
 		INVOKE_ASYNC(src, PROC_REF(execute_resist))
 
 	if (staying)
 		return
-	if (!walktarget)
-		walktarget = ChoosePath()
-	if(walktarget)
-		EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Set walktarget: [walktarget]", list(loc, get_turf(walktarget)))
-	if (loc == tupik_loc)
-		tupik_steps += 1
-	else
-		tupik_loc = loc
-		tupik_steps = 0
 
-	if (tupik_steps <= 3)
+	// Try to walk around
+	if (walktarget)
+		// Log the path currently being taken to the target
+		EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Set walktarget: [walktarget]", list(loc, get_turf(walktarget)))
+	else
+		// Start walking towards a nearby NPC landmark
+		walktarget = ChoosePath()
+
+	// Keep track of how many life ticks the NPC has been stuck
+	if (loc == last_tick_loc)
+		ticks_since_moved += 1
+	else
+		last_tick_loc = loc
+		ticks_since_moved = 0
+
+	if (ticks_since_moved <= 3)
 		return
+
+	// The NPC can't find a path to walk, just make them randomly move
 	var/turf/T = get_step(src, pick(NORTH, SOUTH, WEST, EAST))
 	face_atom(T)
 	step_to(src, T, 0)
 
-	if (!walktarget || old_movement)
+	if (!walktarget || random_movement)
 		return
 	if (observed_by_player())
 		return
+
+	// The NPC has no way to reach its destination and no players are watching, just teleport it there
 	var/turf/old_loc = loc
 	var/turf/new_loc = get_turf(walktarget)
 	forceMove(new_loc)
@@ -152,7 +188,7 @@
 				return get_step(location, direction)
 
 /mob/living/carbon/human/npc/proc/ChoosePath()
-	if(!old_movement)
+	if(!random_movement)
 		var/list/possible_list = list()
 		for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
 			if(get_dist(src, N) < 64)
