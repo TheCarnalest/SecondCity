@@ -48,7 +48,9 @@
 	var/random_movement = FALSE
 
 	/// Turf the NPC is trying to walk towards
-	var/turf/walktarget
+	var/turf/destination
+	/// How far away from the destination the NPC will stop and get a new one
+	var/stop_at_distance = 2
 
 	/// When the NPC was last grabbed, immobilized for 1.5 seconds after being grabbed
 	var/last_grabbed = 0
@@ -57,8 +59,6 @@
 	var/life_ticks_since_moved = 0
 	/// Where the NPC was on their last life tick, used to check if they're stuck
 	var/atom/last_life_tick_location
-
-	var/stopturf = 1
 
 	var/extra_mags = 2
 	var/extra_loaded_rounds = 10
@@ -123,7 +123,7 @@
 	QDEL_NULL(afraid_of_fire)
 	last_attacker = null
 	last_damager = null
-	walktarget = null
+	destination = null
 	last_life_tick_location = null
 	my_weapon_type = null
 	my_weapon = null
@@ -239,14 +239,10 @@
 	if (!can_npc_move())
 		GLOB.move_manager.stop_looping(src)
 
-	var/getaway = stopturf + 1
-
-	if (!random_movement)
-		getaway = 2
-
-	if (get_dist(src, walktarget) <= getaway)
+	// Destination reached, decide on a new destination next tick
+	if (get_dist(src, destination) <= stop_at_distance)
 		GLOB.move_manager.stop_looping(src)
-		walktarget = null
+		destination = null
 
 	. = ..()
 

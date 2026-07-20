@@ -136,12 +136,12 @@
 		return
 
 	// Try to walk around
-	if (walktarget)
+	if (destination)
 		// Log the path currently being taken to the target
-		EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Set walktarget: [walktarget]", list(loc, get_turf(walktarget)))
+		EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Set destination: [destination]", list(loc, get_turf(destination)))
 	else
-		// Start walking towards a nearby NPC landmark
-		walktarget = ChoosePath()
+		// Start walking
+		choose_new_destination()
 
 	// Keep track of how many life ticks the NPC has been stuck
 	if (loc == last_life_tick_location)
@@ -158,14 +158,14 @@
 	face_atom(T)
 	step_to(src, T, 0)
 
-	if (!walktarget || random_movement)
+	if (!destination || random_movement)
 		return
 	if (observed_by_player())
 		return
 
 	// The NPC has no way to reach its destination and no players are watching, just teleport it there
 	var/turf/old_loc = loc
-	var/turf/new_loc = get_turf(walktarget)
+	var/turf/new_loc = get_turf(destination)
 	forceMove(new_loc)
 	EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Teleported using evil russian shitcode", list(old_loc, new_loc))
 
@@ -184,71 +184,79 @@
 			if(istype(A, /obj/effect/landmark/npcwall))
 				return get_step_towards(location, get_turf(src))
 			if(istype(A, /obj/effect/landmark/npcbeacon) && prob(50))
-				stopturf = 1
 				return get_step(location, direction)
 
-/mob/living/carbon/human/npc/proc/ChoosePath()
+/mob/living/carbon/human/npc/proc/choose_new_destination()
 	if(!random_movement)
-		var/list/possible_list = list()
-		for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
-			if(get_dist(src, N) < 64)
-				var/turf/T = get_step(N, turn(get_dir(src, N), 180))
-				var/obj/effect/landmark/npcability/A = locate() in T
-				if(A)
-					if(N.x > x-3 && N.x < x+3)
-						possible_list += N
-					if(N.y > y-3 && N.y < y+3)
-						possible_list += N
-		if(!length(possible_list))
-			var/atom/shitshit
-			for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
-				if(!shitshit)
-					shitshit = N
-				if(get_dist(src, N) > 1 && get_dist(src, N) < get_dist(src, shitshit))
-					shitshit = N
-			if(shitshit)
-				return shitshit
-			else if (length(GLOB.npc_activities))
-				return pick(GLOB.npc_activities)
-			else
-				return
-
-		return pick(possible_list)
+		destination = get_turf(choose_landmark())
 	else
-		var/turf/north_steps = CreateWay(NORTH)
-		var/turf/south_steps = CreateWay(SOUTH)
-		var/turf/west_steps = CreateWay(WEST)
-		var/turf/east_steps = CreateWay(EAST)
+		destination = choose_random_path()
 
-		if(dir == NORTH || dir == SOUTH)
-			if(get_dist(src, west_steps) >= 7 && get_dist(src, east_steps) >= 7)
-				return(pick(west_steps, east_steps))
-			if(get_dist(src, west_steps) > get_dist(src, east_steps))
-				if(prob(75))
-					return west_steps
-			else if(get_dist(src, east_steps) > get_dist(src, west_steps))
-				if(prob(75))
-					return east_steps
-			else
-				if(dir == NORTH)
-					return pick(west_steps, east_steps, south_steps)
-				else
-					return pick(west_steps, east_steps, north_steps)
+/mob/living/carbon/human/npc/proc/choose_landmark()
+	var/list/possible_list = list()
+	for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
+		if(get_dist(src, N) < 64)
+			var/turf/T = get_step(N, turn(get_dir(src, N), 180))
+			var/obj/effect/landmark/npcability/A = locate() in T
+			if(A)
+				if(N.x > x-3 && N.x < x+3)
+					possible_list += N
+				if(N.y > y-3 && N.y < y+3)
+					possible_list += N
+	if(!length(possible_list))
+		var/atom/shitshit
+		for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
+			if(!shitshit)
+				shitshit = N
+			if(get_dist(src, N) > 1 && get_dist(src, N) < get_dist(src, shitshit))
+				shitshit = N
+		if(shitshit)
+			return shitshit
+		else if (length(GLOB.npc_activities))
+			return pick(GLOB.npc_activities)
+		else
+			return
 
-		if(dir == WEST || dir == EAST)
-			if(get_dist(src, north_steps) >= 7 && get_dist(src, south_steps) >= 7)
-				return pick(north_steps, south_steps)
-			if(get_dist(src, north_steps) > get_dist(src, south_steps))
-				if(prob(75))
-					return north_steps
-			else if(get_dist(src, south_steps) > get_dist(src, north_steps))
-				if(prob(75))
-					return south_steps
+	return pick(possible_list)
+
+/mob/living/carbon/human/npc/proc/choose_random_path()
+	// Add some variance to how close to its destination the NPC will stop
+	stop_at_distance = rand(2, 3)
+
+	var/turf/north_steps = CreateWay(NORTH)
+	var/turf/south_steps = CreateWay(SOUTH)
+	var/turf/west_steps = CreateWay(WEST)
+	var/turf/east_steps = CreateWay(EAST)
+
+	if(dir == NORTH || dir == SOUTH)
+		if(get_dist(src, west_steps) >= 7 && get_dist(src, east_steps) >= 7)
+			return(pick(west_steps, east_steps))
+		if(get_dist(src, west_steps) > get_dist(src, east_steps))
+			if(prob(75))
+				return west_steps
+		else if(get_dist(src, east_steps) > get_dist(src, west_steps))
+			if(prob(75))
+				return east_steps
+		else
+			if(dir == NORTH)
+				return pick(west_steps, east_steps, south_steps)
 			else
-				if(dir == WEST)
-					return pick(north_steps, south_steps, east_steps)
-				else
-					return pick(north_steps, south_steps, west_steps)
+				return pick(west_steps, east_steps, north_steps)
+
+	if(dir == WEST || dir == EAST)
+		if(get_dist(src, north_steps) >= 7 && get_dist(src, south_steps) >= 7)
+			return pick(north_steps, south_steps)
+		if(get_dist(src, north_steps) > get_dist(src, south_steps))
+			if(prob(75))
+				return north_steps
+		else if(get_dist(src, south_steps) > get_dist(src, north_steps))
+			if(prob(75))
+				return south_steps
+		else
+			if(dir == WEST)
+				return pick(north_steps, south_steps, east_steps)
+			else
+				return pick(north_steps, south_steps, west_steps)
 
 /mob/living/carbon/human/npc/proc/can_npc_move()
 	if(stat >= HARD_CRIT)
@@ -294,11 +302,10 @@
 	if (!can_npc_move())
 		return
 
-	// Not going anywhere, decide on a place to walk to
-	if (!walktarget && !no_movement)
-		stopturf = rand(1, 2)
-		walktarget = ChoosePath()
-		face_atom(walktarget)
+	// Not going anywhere, decide on a place to walk to and how far away from it to stop
+	if (!destination && !no_movement)
+		choose_new_destination()
+		face_atom(destination)
 
 	// Can't do anything if in a container
 	if (!isturf(loc))
@@ -340,8 +347,8 @@
 			emote("scream")
 
 	// Walking around behaviour
-	else if (walktarget && !no_movement)
-		GLOB.move_manager.move_to(src, walktarget, 0, cached_multiplicative_slowdown)
+	else if (destination && !no_movement)
+		GLOB.move_manager.move_to(src, destination, 0, cached_multiplicative_slowdown)
 
 	if (!has_weapon || danger_source || !spawned_weapon)
 		return

@@ -41,7 +41,8 @@
 			npc_stow_weapon()
 		else
 			has_weapon = FALSE
-	walktarget = ChoosePath()
+
+	choose_new_destination()
 
 	set_combat_mode(FALSE)
 	if (move_intent == MOVE_INTENT_RUN)
