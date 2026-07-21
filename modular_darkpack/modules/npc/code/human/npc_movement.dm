@@ -1,137 +1,4 @@
-/obj/effect/landmark/npc_spawn_point
-	icon = 'modular_darkpack/modules/deprecated/icons/effects/landmarks_static.dmi'
-	icon_state = "spawn"
-
-/obj/effect/landmark/npc_spawn_point/Initialize(mapload)
-	. = ..()
-
-	GLOB.npc_spawn_points += src
-
-/obj/effect/landmark/npc_spawn_point/Destroy()
-	GLOB.npc_spawn_points -= src
-
-	return ..()
-
-/obj/effect/landmark/npcbeacon
-	name = "NPC beacon"
-	var/directionwalk
-
-/obj/effect/landmark/npcbeacon/directed
-	name = "NPC traffic"
-	icon = 'modular_darkpack/modules/deprecated/icons/effects/landmarks_static.dmi'
-	icon_state = "npc"
-
-/obj/effect/landmark/npcbeacon/directed/Initialize(mapload)
-	. = ..()
-
-	directionwalk = dir
-
-/**
- * Marker to be placed on a turf that AI (like NPCs) shouldn't be able to path or walk through.
- *
- * Players could theoretically immobilize NPCs by placing them on or inbetween these, so use with
- * caution and try not to cover areas in them.
- */
-/obj/effect/landmark/npcwall
-	name = "NPC Wall"
-	icon_state = "x"
-
-/obj/effect/landmark/npcwall/Initialize(mapload)
-	. = ..()
-
-	var/turf/on_turf = get_turf(src)
-	ADD_TRAIT(on_turf, TRAIT_AI_AVOID_TURF, src)
-
-/obj/effect/landmark/npcwall/Destroy()
-	// This effect isn't supposed to ever move
-	var/turf/on_turf = get_turf(src)
-	REMOVE_TRAIT(on_turf, TRAIT_AI_AVOID_TURF, src)
-
-	return ..()
-
-/obj/effect/landmark/npcactivity
-	name = "NPC Activity"
-	icon = 'modular_darkpack/modules/deprecated/icons/effects/landmarks_static.dmi'
-	icon_state = "bullets"
-
-/obj/effect/landmark/npcability
-	name = "NPC Ability"
-	icon = 'modular_darkpack/modules/deprecated/icons/effects/landmarks_static.dmi'
-	icon_state = "ability"
-
-/obj/effect/landmark/npcactivity/Initialize(mapload)
-	. = ..()
-
-	GLOB.npc_activities += src
-
-/obj/effect/landmark/npcactivity/Destroy()
-	. = ..()
-
-	GLOB.npc_activities -= src
-
-/mob/living/carbon/human/npc/death()
-	GLOB.alive_npc_list -= src
-	SShumannpcpool.try_repopulate()
-	GLOB.move_manager.stop_looping(src)
-
-	if (!last_attacker || (get_dist(src, last_attacker) >= 10) || key || hostile)
-		return ..()
-
-	if (istype(last_attacker, /mob/living/simple_animal/hostile))
-		var/mob/living/simple_animal/hostile/HS = last_attacker
-		if(HS.my_creator)
-			SEND_SIGNAL(HS.my_creator, COMSIG_PATH_HIT, -1, 0, FALSE, 8)
-			HS.my_creator.killed_count += 1
-			if(!HS.my_creator.warrant && !HS.my_creator.ignores_warrant)
-				if(HS.my_creator.killed_count >= 5)
-					HS.my_creator.warrant = TRUE
-					SEND_SOUND(HS.my_creator, sound('modular_darkpack/modules/deprecated/sounds/suspect.ogg', volume = 75))
-					to_chat(HS.my_creator, span_userdanger("<b>POLICE ASSAULT IN PROGRESS</b>"))
-				else
-					SEND_SOUND(HS.my_creator, sound('modular_darkpack/modules/deprecated/sounds/sus.ogg', volume = 75))
-					to_chat(HS.my_creator, span_userdanger("<b>SUSPICIOUS ACTION (murder)</b>"))
-	else if (ishuman(last_attacker))
-		var/mob/living/carbon/human/HM = last_attacker
-		SEND_SIGNAL(HM, COMSIG_PATH_HIT, -1, 0, FALSE, 8)
-		HM.killed_count += 1
-		if(!HM.warrant && !HM.ignores_warrant)
-			if(HM.killed_count >= 5)
-				HM.warrant = TRUE
-				SEND_SOUND(HM, sound('modular_darkpack/modules/deprecated/sounds/suspect.ogg', volume = 75))
-				to_chat(HM, span_userdanger("<b>POLICE ASSAULT IN PROGRESS</b>"))
-			else
-				SEND_SOUND(HM, sound('modular_darkpack/modules/deprecated/sounds/sus.ogg', volume = 75))
-				to_chat(HM, span_userdanger("<b>SUSPICIOUS ACTION (murder)</b>"))
-
-	. = ..()
-
-/mob/living/carbon/human/npc/Life()
-	// huh, NPCs don't run Life() at all if they're dead
-	// this means NPCs' organs will never rot, they'll stop bleeding, their body will stay
-	// the temperature it was when they died, etc. remove?
-	if (stat == DEAD)
-		return
-
-	. = ..()
-
-	// Aggro on whoever is pulling them
-	if (pulledby && (prob(25) || aggressive))
-		INVOKE_ASYNC(src, PROC_REF(Aggro), pulledby, TRUE)
-
-	if (!can_npc_move())
-		return
-
-	// NPCs don't need to eat apparently
-	nutrition = 400
-
-	// Refresh hostility if the danger source is in view distance
-	if (get_dist(danger_source, src) < 7)
-		last_antagonised = world.time
-
-	// Stop, drop, and roll!
-	if (fire_stacks >= 1)
-		INVOKE_ASYNC(src, PROC_REF(execute_resist))
-
+/mob/living/carbon/human/npc/proc/movement_tick(seconds_per_tick)
 	if (no_movement)
 		return
 
@@ -143,14 +10,14 @@
 		// Start walking
 		choose_new_destination()
 
-	// Keep track of how many life ticks the NPC has been stuck
-	if (loc == last_life_tick_location)
-		life_ticks_since_moved += 1
+	// Keep track of how long the NPC has been stuck
+	if (loc == last_location)
+		time_since_moved += seconds_per_tick
 	else
-		last_life_tick_location = loc
-		life_ticks_since_moved = 0
+		last_location = loc
+		time_since_moved = 0
 
-	if (life_ticks_since_moved <= 3)
+	if (time_since_moved <= 6 SECONDS)
 		return
 
 	// The NPC can't find a path to walk, just make them randomly move
@@ -164,45 +31,40 @@
 		return
 
 	// The NPC has no way to reach its destination and no players are watching, just teleport it there
-	var/turf/old_loc = loc
-	var/turf/new_loc = get_turf(destination)
-	forceMove(new_loc)
-	EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Teleported using evil russian shitcode", list(old_loc, new_loc))
+	EVLOG_PATH(src, EVLOG_CATEGORY_MOVELOOPS, "Teleported using evil russian shitcode", list(loc, destination))
+	forceMove(destination)
 
-/mob/living/carbon/human/npc/proc/CreateWay(direction)
-	var/turf/location = get_turf(src)
-	for(var/distance = 1 to 50)
-		location = get_step(location, direction)
-		if(iswallturf(location))
-			return location
-		for(var/atom/A in location)
-			// DARKPACK TODO - reimplement decor
-			/*
-			if(A.density && !istype(A, /obj/structure/lamppost))
-				return location
-			*/
-			if(istype(A, /obj/effect/landmark/npcwall))
-				return get_step_towards(location, get_turf(src))
-			if(istype(A, /obj/effect/landmark/npcbeacon) && prob(50))
-				return get_step(location, direction)
+/mob/living/carbon/human/npc/proc/observed_by_player()
+	// This includes ghosts and observers
+	for (var/mob/observing_mob in viewers(DEFAULT_SIGHT_DISTANCE, src))
+		if (!observing_mob.client)
+			continue
+		return TRUE
+
+	return FALSE
 
 /mob/living/carbon/human/npc/proc/choose_new_destination()
-	if(!random_movement)
+	if (!random_movement)
 		destination = get_turf(choose_landmark())
 	else
 		destination = choose_random_path()
 
 /mob/living/carbon/human/npc/proc/choose_landmark()
 	var/list/possible_list = list()
-	for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
-		if(get_dist(src, N) < 64)
-			var/turf/T = get_step(N, turn(get_dir(src, N), 180))
-			var/obj/effect/landmark/npcability/A = locate() in T
-			if(A)
-				if(N.x > x-3 && N.x < x+3)
-					possible_list += N
-				if(N.y > y-3 && N.y < y+3)
-					possible_list += N
+	for (var/obj/effect/landmark/npcactivity/activity in GLOB.npc_activities)
+		if (get_dist(src, activity) >= 64)
+			continue
+
+		var/turf/T = get_step(activity, turn(get_dir(src, activity), 180))
+		var/obj/effect/landmark/npcability/A = locate() in T
+		if (!A)
+			continue
+
+		if (activity.x > x-3 && activity.x < x+3)
+			possible_list += activity
+		if (activity.y > y-3 && activity.y < y+3)
+			possible_list += activity
+
 	if(!length(possible_list))
 		var/atom/shitshit
 		for(var/obj/effect/landmark/npcactivity/N in GLOB.npc_activities)
@@ -223,10 +85,10 @@
 	// Add some variance to how close to its destination the NPC will stop
 	stop_at_distance = rand(2, 3)
 
-	var/turf/north_steps = CreateWay(NORTH)
-	var/turf/south_steps = CreateWay(SOUTH)
-	var/turf/west_steps = CreateWay(WEST)
-	var/turf/east_steps = CreateWay(EAST)
+	var/turf/north_steps = find_destination_in_direction(NORTH)
+	var/turf/south_steps = find_destination_in_direction(SOUTH)
+	var/turf/west_steps = find_destination_in_direction(WEST)
+	var/turf/east_steps = find_destination_in_direction(EAST)
 
 	if(dir == NORTH || dir == SOUTH)
 		if(get_dist(src, west_steps) >= 7 && get_dist(src, east_steps) >= 7)
@@ -257,6 +119,81 @@
 				return pick(north_steps, south_steps, east_steps)
 			else
 				return pick(north_steps, south_steps, west_steps)
+
+/mob/living/carbon/human/npc/proc/find_destination_in_direction(direction)
+	var/turf/valid_location = get_turf(src)
+	for (var/distance = 1 to 50)
+		var/turf/checking_location = get_step(valid_location, direction)
+		if (iswallturf(checking_location))
+			return checking_location
+		if (!checking_location.can_cross_safely(src))
+			return valid_location
+		if ((locate(/obj/effect/landmark/npcbeacon) in checking_location) && prob(50))
+			return checking_location
+
+		valid_location = checking_location
+
+/mob/living/carbon/human/npc/proc/handle_automated_movement()
+	set waitfor = FALSE
+
+	if (!can_npc_move())
+		return
+
+	// Not going anywhere, decide on a place to walk to and how far away from it to stop
+	if (!destination && !no_movement)
+		choose_new_destination()
+		face_atom(destination)
+
+	// Can't do anything if in a container
+	if (!isturf(loc))
+		return
+
+	// Checks for fire, clearing the stored fire if none is in view
+	afraid_of_fire = WEAKREF(locate(/obj/effect/abstract/turf_fire) in view(DEFAULT_SIGHT_DISTANCE, src))
+
+	var/obj/effect/abstract/turf_fire/seeing_fire = afraid_of_fire?.resolve()
+	if (danger_source)
+		// Combat behavior
+		// Run away from the danger source if they aren't aggressive and have no weapon
+		if (!has_weapon && !aggressive)
+			GLOB.move_manager.move_away(src, danger_source, 10, cached_multiplicative_slowdown)
+		else
+			if(!spawned_weapon && has_weapon)
+				npc_draw_weapon()
+			if(spawned_weapon && get_active_held_item() != my_weapon)
+				has_weapon = FALSE
+			if(danger_source)
+				if(danger_source == src)
+					danger_source = null
+				else
+					ClickOn(danger_source)
+					face_atom(danger_source)
+					GLOB.move_manager.move_to(src, danger_source, 1, cached_multiplicative_slowdown)
+
+		// Deaggro if the danger source has been beaten up
+		if (danger_source.stat > UNCONSCIOUS)
+			end_combat()
+
+		// Deaggro if 30 second have passed since being antagonised
+		if ((last_antagonised + 30 SECONDS) <= world.time)
+			end_combat()
+	else if (seeing_fire)
+		// Running away from fire behaviour
+		GLOB.move_manager.move_away(src, seeing_fire, 10, cached_multiplicative_slowdown)
+		if (prob(25))
+			emote("scream")
+	else if (destination && !no_movement)
+		// Walking around behaviour
+		GLOB.move_manager.move_to(src, destination, 0, cached_multiplicative_slowdown)
+
+	if (!has_weapon || danger_source || !spawned_weapon)
+		return
+
+	// Put their weapon away when not in combat or note that they lost it
+	if (get_active_held_item() == my_weapon)
+		npc_stow_weapon()
+	else
+		has_weapon = FALSE
 
 /mob/living/carbon/human/npc/proc/can_npc_move()
 	if(stat >= HARD_CRIT)
@@ -289,72 +226,3 @@
 		return FALSE
 
 	return TRUE
-
-/mob/living/carbon/human/npc/proc/observed_by_player()
-	for (var/mob/observing_mob in viewers(DEFAULT_SIGHT_DISTANCE, src))
-		if (!observing_mob.client)
-			continue
-		return TRUE
-
-	return FALSE
-
-/mob/living/carbon/human/npc/proc/handle_automated_movement()
-	if (!can_npc_move())
-		return
-
-	// Not going anywhere, decide on a place to walk to and how far away from it to stop
-	if (!destination && !no_movement)
-		choose_new_destination()
-		face_atom(destination)
-
-	// Can't do anything if in a container
-	if (!isturf(loc))
-		return
-
-	// Checks for fire, clearing the stored fire if none is in view
-	afraid_of_fire = locate(/obj/effect/abstract/turf_fire) in view(DEFAULT_SIGHT_DISTANCE, src)
-
-	// Combat behaviour
-	if (danger_source)
-		// Run away from the danger source if they aren't aggressive and have no weapon
-		if (!has_weapon && !aggressive)
-			GLOB.move_manager.move_away(src, danger_source, 10, cached_multiplicative_slowdown)
-		else
-			if(!spawned_weapon && has_weapon)
-				npc_draw_weapon()
-			if(spawned_weapon && get_active_held_item() != my_weapon)
-				has_weapon = FALSE
-			if(danger_source)
-				if(danger_source == src)
-					danger_source = null
-				else
-					ClickOn(danger_source)
-					face_atom(danger_source)
-					GLOB.move_manager.move_to(src, danger_source, 1, cached_multiplicative_slowdown)
-
-		// Deaggro if the danger source has been beaten up
-		if (danger_source.stat > UNCONSCIOUS)
-			end_combat()
-
-		// Deaggro if 30 second have passed since being antagonised
-		if ((last_antagonised + 30 SECONDS) <= world.time)
-			end_combat()
-
-	// Running away from fire behaviour
-	else if (afraid_of_fire)
-		GLOB.move_manager.move_away(src, afraid_of_fire, 10, cached_multiplicative_slowdown)
-		if (prob(25))
-			emote("scream")
-
-	// Walking around behaviour
-	else if (destination && !no_movement)
-		GLOB.move_manager.move_to(src, destination, 0, cached_multiplicative_slowdown)
-
-	if (!has_weapon || danger_source || !spawned_weapon)
-		return
-
-	// Put their weapon away when not in combat or note that they lost it
-	if (get_active_held_item() == my_weapon)
-		npc_stow_weapon()
-	else
-		has_weapon = FALSE

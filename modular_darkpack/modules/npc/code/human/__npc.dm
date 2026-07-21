@@ -1,6 +1,3 @@
-#define BANDIT_TYPE_NPC /mob/living/carbon/human/npc/bandit
-#define POLICE_TYPE_NPC /mob/living/carbon/human/npc/police
-
 /mob/living/carbon/human/npc
 	name = "NPC"
 
@@ -18,29 +15,35 @@
 	/// This only determines my_weapon, you set my_backup_weapon yourself
 	/// The last entry in the list for a type of NPC should always have 100 as the index
 	var/static/list/role_weapons_chances = list(
-		BANDIT_TYPE_NPC = list(
+		/mob/living/carbon/human/npc/bandit = list(
 			/obj/item/gun/ballistic/automatic/pistol/darkpack/deagle = 33,
 			/obj/item/gun/ballistic/revolver/darkpack/snub = 33,
 			/obj/item/melee/baseball_bat/vamp = 100,
 		),
-		POLICE_TYPE_NPC = list(
+		/mob/living/carbon/human/npc/police = list(
 			/obj/item/gun/ballistic/revolver/darkpack/magnum = 66,
 			/obj/item/gun/ballistic/automatic/darkpack/ar15 = 100,
 		)
 	)
+
+	/// Template for NPC appearance, behavior, and equipment
 	var/datum/socialrole/socialrole
 
 	var/is_talking = FALSE
+
 	COOLDOWN_DECLARE(annoyed_cooldown)
 	COOLDOWN_DECLARE(car_dodge)
-	var/hostile = FALSE
+
+	/// Will fight rather than run away from danger
 	var/aggressive = FALSE
 	var/last_antagonised = 0
 	var/mob/living/danger_source
-	var/obj/effect/abstract/turf_fire/afraid_of_fire
 	var/mob/living/last_attacker
 	var/last_health = 100
 	var/mob/living/last_damager
+
+	/// Reference to a /obj/effect/abstract/turf_fire that the NPC is running away from
+	var/datum/weakref/afraid_of_fire
 
 	/// If true, the NPC won't move
 	var/no_movement = FALSE
@@ -56,23 +59,19 @@
 	var/last_grabbed = 0
 
 	/// How many life ticks since the NPC moved, used to check if they're stuck
-	var/life_ticks_since_moved = 0
+	var/time_since_moved = 0
 	/// Where the NPC was on their last life tick, used to check if they're stuck
-	var/atom/last_life_tick_location
+	var/atom/last_location
 
 	var/extra_mags = 2
 	var/extra_loaded_rounds = 10
 
 	var/has_weapon = FALSE
-
 	var/my_weapon_type = null
 	var/obj/item/my_weapon = null
-
 	var/my_backup_weapon_type = null
 	var/obj/item/my_backup_weapon = null
-
 	var/spawned_weapon = FALSE
-
 	var/spawned_backup_weapon = FALSE
 
 	var/list/drop_on_death_list = null
@@ -118,22 +117,75 @@
 
 /mob/living/carbon/human/npc/Destroy()
 	UnregisterSignal(src, list(COMSIG_ATOM_WAS_ATTACKED, COMSIG_LIVING_MOB_BUMPED, COMSIG_CARBON_HELP_ACT))
-	QDEL_NULL(socialrole)
-	danger_source = null
-	QDEL_NULL(afraid_of_fire)
-	last_attacker = null
-	last_damager = null
-	destination = null
-	last_life_tick_location = null
-	my_weapon_type = null
-	my_weapon = null
-	my_backup_weapon_type = null
-	my_backup_weapon = null
-	drop_on_death_list = null
+	qdel(socialrole)
+
 	GLOB.npc_list -= src
 	GLOB.alive_npc_list -= src
+
 	SShumannpcpool.try_repopulate()
-	return ..()
+
+	. = ..()
+
+/mob/living/carbon/human/npc/Life(seconds_per_tick)
+	// huh, NPCs don't run Life() at all if they're dead
+	// this means NPCs' organs will never rot, they'll stop bleeding, their body will stay the
+	// temperature it was when they died, etc. remove?
+	if (stat == DEAD)
+		return
+
+	. = ..()
+
+	// start_combat on whoever is pulling them
+	if (pulledby && (prob(25) || aggressive))
+		INVOKE_ASYNC(src, PROC_REF(start_combat), pulledby, TRUE)
+
+	if (!can_npc_move())
+		return
+
+	// NPCs don't need to eat apparently
+	nutrition = 400
+
+	// Refresh hostility if the danger source is in view distance
+	if (get_dist(danger_source, src) < 7)
+		last_antagonised = world.time
+
+	// Stop, drop, and roll!
+	if (fire_stacks >= 1)
+		INVOKE_ASYNC(src, PROC_REF(execute_resist))
+
+	movement_tick(seconds_per_tick)
+
+/mob/living/carbon/human/npc/death()
+	GLOB.alive_npc_list -= src
+	SShumannpcpool.try_repopulate()
+	GLOB.move_manager.stop_looping(src)
+
+	// Drop sticky items
+	if (!LAZYLEN(drop_on_death_list))
+		for (var/obj/item/dropping_item in drop_on_death_list)
+			LAZYREMOVE(drop_on_death_list, dropping_item)
+			REMOVE_TRAIT(dropping_item, TRAIT_NODROP, NPC_ITEM_TRAIT)
+			dropItemToGround(dropping_item, TRUE)
+
+	if (!last_attacker || get_dist(src, last_attacker) >= 10 || !ishuman(last_attacker) || key)
+		return ..()
+
+	var/mob/living/carbon/human/HM = last_attacker
+	SEND_SIGNAL(HM, COMSIG_PATH_HIT, -1, 0, FALSE, 8)
+	HM.killed_count += 1
+
+	if (HM.warrant || HM.ignores_warrant)
+		return ..()
+
+	if (HM.killed_count >= 5)
+		HM.warrant = TRUE
+		SEND_SOUND(HM, sound('modular_darkpack/modules/deprecated/sounds/suspect.ogg', volume = 75))
+		to_chat(HM, span_userdanger("<b>POLICE ASSAULT IN PROGRESS</b>"))
+	else
+		SEND_SOUND(HM, sound('modular_darkpack/modules/deprecated/sounds/sus.ogg', volume = 75))
+		to_chat(HM, span_userdanger("<b>SUSPICIOUS ACTION (murder)</b>"))
+
+	. = ..()
 
 //====================Sticky Item Handling====================
 
@@ -142,18 +194,6 @@
 	if(!drop_on_death_list?.len)
 		drop_on_death_list = list()
 	drop_on_death_list += my_item
-
-/mob/living/carbon/human/npc/death(gibbed)
-	. = ..()
-
-	if (!LAZYLEN(drop_on_death_list))
-		return
-
-	// Drop sticky items
-	for (var/obj/item/dropping_item in drop_on_death_list)
-		LAZYREMOVE(drop_on_death_list, dropping_item)
-		REMOVE_TRAIT(dropping_item, TRAIT_NODROP, NPC_ITEM_TRAIT)
-		dropItemToGround(dropping_item, TRUE)
 
 //============================================================
 
@@ -212,14 +252,14 @@
 /mob/living/carbon/human/npc/proc/handle_attacked(mob/living/carbon/human/npc/source, mob/living/attacker, attack_flags)
 	// Only aggro nearby NPCs if the attack is dealing actual damage
 	if (attack_flags & (ATTACKER_STAMINA_ATTACK | ATTACKER_SHOVING))
-		Aggro(attacker, TRUE)
+		start_combat(attacker, TRUE)
 		return
 
 	for (var/mob/living/carbon/human/npc/nearby_npcs in oviewers(DEFAULT_SIGHT_DISTANCE, src))
-		nearby_npcs.Aggro(attacker)
+		nearby_npcs.start_combat(attacker)
 	SEND_SIGNAL(SSdcs, COMSIG_GLOB_REPORT_CRIME, CRIME_FIREFIGHT, get_turf(src))
 
-	Aggro(attacker, TRUE)
+	start_combat(attacker, TRUE)
 
 /mob/living/carbon/human/npc/proc/handle_bumped(mob/living/carbon/human/npc/source, mob/living/bumping)
 	SIGNAL_HANDLER

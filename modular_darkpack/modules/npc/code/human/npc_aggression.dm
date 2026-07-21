@@ -1,4 +1,4 @@
-/mob/living/carbon/human/npc/proc/Aggro(mob/living/victim, attacked = FALSE)
+/mob/living/carbon/human/npc/proc/start_combat(mob/living/victim, attacked = FALSE)
 	if (stat == DEAD)
 		return
 	if (attacked && danger_source != victim)
