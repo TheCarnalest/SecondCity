@@ -1337,9 +1337,11 @@
 	if(!should_draw_greyscale || !icon_greyscale)
 		used_icon = icon_static
 
-	var/used_state = "[limb_id]_[body_zone]"
+	// DARKPACK EDIT CHANGE START - Body weight sprites
+	var/used_state = "[body_weight][limb_id]_[body_zone]"
 	if(is_dimorphic) // Does this type of limb have sexual dimorphism?
-		used_state = "[limb_id]_[body_zone]_[limb_gender]"
+		used_state = "[body_weight][limb_id]_[body_zone]_[limb_gender]"
+	// DARKPACK EDIT CHANGE END
 
 	var/image/limb = image(used_icon, used_state, -BODYPARTS_LAYER, dir = image_dir)
 	var/image/aux = null
@@ -1806,7 +1808,7 @@
 		owner.update_body_parts()
 
 	//This foot gun needs a safety
-	if(!icon_exists(icon_holder, "[limb_id]_[body_zone][is_dimorphic ? "_[limb_gender]" : ""]"))
+	if(!icon_exists(icon_holder, "[body_weight][limb_id]_[body_zone][is_dimorphic ? "_[limb_gender]" : ""]")) // DARKPACK EDIT CHANGE - Body weight sprites
 		reset_appearance()
 		stack_trace("change_appearance([icon], [id], [greyscale], [dimorphic]) generated null icon")
 
@@ -1817,6 +1819,7 @@
 	limb_id = initial(limb_id)
 	is_dimorphic = initial(is_dimorphic)
 	should_draw_greyscale = initial(should_draw_greyscale)
+	body_weight = initial(body_weight) // DARKPACK EDIT ADD - Body weight sprites
 
 	if(!owner)
 		update_icon_dropped()

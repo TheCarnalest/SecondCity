@@ -468,6 +468,10 @@
 	else if(ishuman(owner)) // otherwise cache height because we apply height filters to bodypart images
 		var/mob/living/carbon/human/human_owner = owner
 		. += "[human_owner.mob_height]"
+	// DARKPACK EDIT ADD START - Body weight sprites
+	if (body_weight)
+		. += "-[body_weight]"
+	// DARKPACK EDIT ADD END - Body weight sprites
 	SEND_SIGNAL(src, COMSIG_BODYPART_GENERATE_ICON_KEY, .)
 	return .
 

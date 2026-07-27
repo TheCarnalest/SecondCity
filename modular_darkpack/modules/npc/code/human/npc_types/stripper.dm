@@ -4,6 +4,8 @@
 /mob/living/carbon/human/npc/stripper/Initialize(mapload)
 	. = ..()
 
+	set_body_weight(SLIM_BODY_WEIGHT)
+
 	AssignSocialRole(/datum/socialrole/stripfemale)
 
 	underwear = "Nude"
